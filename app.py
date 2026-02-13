@@ -40,6 +40,12 @@ ICON_REPORT = """
 ICON_DEEP_DIVE = """
 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-search"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
 """
+ICON_WARNING = """
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-alert-triangle"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+"""
+ICON_INSIGHTS = """
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-message-square"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+"""
 
 # --- Model and Scaler Loading ---
 def _patch_sklearn_model(model):
@@ -67,11 +73,6 @@ def load_scaler(model_name):
     if not os.path.exists(scaler_path):
         return None
     return joblib.load(scaler_path)
-
-@st.cache_data
-def load_pca(model_name):
-    path = f'models/pkl_files/{model_name}_pca.pkl'
-    return joblib.load(path) if os.path.exists(path) else None
 
 @st.cache_data
 def load_features(model_name):
@@ -148,7 +149,31 @@ def landing_page():
     st.markdown("---")
     st.markdown("""
         This application analyzes customer data to predict the risk of credit default.
-        
+
+        It provides a comprehensive platform to evaluate and compare various machine learning models. Users can upload their own datasets or use the pre-loaded one to see how different models like Logistic Regression, Decision Trees, and XGBoost perform. The dashboard offers a detailed view of model metrics, feature importances, and visualizations to help in making informed decisions.
+
+        The primary goal is to identify customers who are likely to default on their loans, allowing financial institutions to mitigate risk. By understanding the key factors that contribute to default, lenders can improve their lending criteria and strategies. This interactive tool aims to make the process of model evaluation more transparent and accessible.
+    """)
+
+    st.header("Start Analysis")
+    
+    with st.expander("Analyse Existing Dataset and Upload New Dataset", expanded=True):
+        if st.button("Analyze Existing Dataset"):
+            st.session_state.data = pd.read_csv('data/application_train.csv')
+            st.session_state.page = 'dashboard'
+            st.rerun()
+
+        st.markdown("<div style='text-align:center; font-weight:bold; margin:0.5rem 0;'>OR</div>", unsafe_allow_html=True)
+
+        uploaded_file = st.file_uploader("Upload a new CSV file", type="csv")
+        if uploaded_file:
+            st.session_state.data = pd.read_csv(uploaded_file)
+            st.session_state.page = 'dashboard'
+            st.rerun()
+
+    st.markdown("---")
+    
+    st.markdown("""
         **If you encounter errors, please click the 'Train / Retrain All Models' button.** This ensures all models are up-to-date with the latest code.
     """)
 
@@ -156,23 +181,6 @@ def landing_page():
         st.markdown("Use this only when the underlying data or model code has changed.")
         if st.button("Train / Retrain All Models"):
             train_models()
-
-    st.markdown("---")
-    st.header("Start Analysis")
-    st.markdown("---")
-    
-    if st.button("Analyze Existing Dataset"):
-        st.session_state.data = pd.read_csv('data/application_train.csv')
-        st.session_state.page = 'dashboard'
-        st.rerun()
-
-    st.markdown("<div style='text-align:center; font-weight:bold; margin:0.5rem 0;'>OR</div>", unsafe_allow_html=True)
-
-    uploaded_file = st.file_uploader("Upload a new CSV file", type="csv")
-    if uploaded_file:
-        st.session_state.data = pd.read_csv(uploaded_file)
-        st.session_state.page = 'dashboard'
-        st.rerun()
 
 def dashboard_page():
     st.title("Model Performance Dashboard")
@@ -232,7 +240,6 @@ def dashboard_page():
 
     st.markdown(f"<h3>{ICON_DATASET} Dataset Overview</h3>", unsafe_allow_html=True)
     with st.expander("", expanded=True):
-        num_features = X.shape[1]
         if n_rows == 0:
             sample_label = "N/A"
         elif sample_size and sample_size < n_rows:
@@ -243,12 +250,11 @@ def dashboard_page():
         raw_missing_pct = (data.isnull().sum().sum() / data.size) * 100
         raw_cat_features = len(data.select_dtypes(include=['object']).columns)
 
-        col_a, col_b, col_c, col_d, col_e = st.columns(5)
+        col_a, col_b, col_c, col_d = st.columns(4)
         col_a.metric("Total Instances", f"{n_rows:,}")
         col_b.metric("Sample Used", sample_label)
         col_c.metric("Missing Values % (Raw)", f"{raw_missing_pct:.2f}%")
         col_d.metric("Categorical Features (Raw)", f"{raw_cat_features:,}")
-        col_e.metric("Features After Encoding", f"{num_features:,}")
         
         scaled_models = "Logistic Regression, K-Nearest Neighbors, Naive Bayes"
         if y is not None:
@@ -257,27 +263,24 @@ def dashboard_page():
         else:
             st.caption(f"No TARGET column detected. Features scaled via StandardScaler for: {scaled_models}.")
 
-
+    st.markdown("---")
     st.markdown(f"<h3>{ICON_PREVIEW} Dataset Preview</h3>", unsafe_allow_html=True)
     st.dataframe(data.head())
-
-    # ============================================================
-    # NEW SECTION — Class Imbalance Explanation (ADDED ONLY)
-    # ============================================================
+    st.markdown("---")
     
     if y is not None:
-        st.markdown("### ⚠️ Class Imbalance & Metric Interpretation")
+        st.markdown(f"<h3>{ICON_WARNING} Class Imbalance & Metric Interpretation</h3>", unsafe_allow_html=True)
     
         default_rate = y.mean()
         non_default_rate = 1 - default_rate
-        imbalance_ratio = int(non_default_rate / default_rate)
+        imbalance_ratio = int(non_default_rate / default_rate) if default_rate > 0 else float('inf')
         baseline_acc = max(default_rate, non_default_rate)
     
         c1, c2, c3 = st.columns(3)
     
         c1.metric("Default Rate (Positive Class)", f"{default_rate:.2%}")
         c2.metric("Majority Baseline Accuracy", f"{baseline_acc:.2%}")
-        c3.metric("Imbalance Ratio", f"1 : {imbalance_ratio}")
+        c3.metric("Imbalance Ratio", f"1 : {imbalance_ratio}" if default_rate > 0 else "N/A")
     
         colA, colB = st.columns(2)
     
@@ -286,7 +289,7 @@ def dashboard_page():
             fig, ax = plt.subplots(figsize=(6, 4))
             y.value_counts().plot(kind='pie', autopct='%1.1f%%', ax=ax)
             ax.set_ylabel("")
-            ax.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+            ax.axis('equal')
             st.pyplot(fig)
             plt.close()
 
@@ -313,10 +316,10 @@ def dashboard_page():
     👉 For credit risk problems, **AUC, Recall, and MCC are better metrics than Accuracy**
             """
         )
+        st.markdown("---")
 
     if y is not None:
         st.markdown(f"<h3>{ICON_MODEL} Model Comparison</h3>", unsafe_allow_html=True)
-        # Sample data if larger than selected size
         if sample_size and n_rows > sample_size:
             sample_idx = X.sample(n=sample_size, random_state=42).index
             X_eval = X.loc[sample_idx]
@@ -347,17 +350,15 @@ def dashboard_page():
                     continue
 
                 X_aligned = X_eval.reindex(columns=feature_cols, fill_value=0)
-
+                
                 scaler = load_scaler(file)
                 if scaler:
                     X_scaled = scaler.transform(X_aligned)
+                    X_scaled = pd.DataFrame(X_scaled, columns=X_aligned.columns)
                 else:
                     X_scaled = X_aligned
 
-                # apply PCA only if exists
-                pca = load_pca(file)
-                if pca:
-                    X_scaled = pca.transform(X_scaled)
+                X_scaled = X_scaled[list(feature_cols)]
 
                 y_pred_proba = model.predict_proba(X_scaled)[:, 1]
                 y_pred = (y_pred_proba >= prob_threshold).astype(int)
@@ -372,6 +373,7 @@ def dashboard_page():
 
         results_df = pd.DataFrame(results)
         st.dataframe(results_df, use_container_width=True)
+        st.markdown("---")
 
         st.markdown(f"<h3>{ICON_VISUALIZATION} Model Performance Visualization</h3>", unsafe_allow_html=True)
         if len(results_df) > 0 and len(selected_metrics) > 0:
@@ -401,6 +403,7 @@ def dashboard_page():
             plt.tight_layout()
             st.pyplot(fig)
             plt.close()
+        st.markdown("---")
 
         st.markdown(f"<h3>{ICON_REPORT} Confusion Matrix & Classification Report</h3>", unsafe_allow_html=True)
         if selected_models:
@@ -427,6 +430,7 @@ def dashboard_page():
                     st.subheader("Classification Report")
                     report = classification_report(y_eval, y_pred_display, target_names=['No Default', 'Default'])
                     st.code(report)
+        st.markdown("---")
 
         st.markdown(f"<h3>{ICON_DEEP_DIVE} Deep Dive Analysis</h3>", unsafe_allow_html=True)
         if selected_models:
@@ -496,6 +500,19 @@ def dashboard_page():
                             st.info("Could not determine feature names for importance plot.")
                     else:
                         st.info("Feature importance is not available for this model type (e.g., K-Nearest Neighbors).")
+        
+        st.markdown("---")
+        st.markdown(f"<h3>{ICON_INSIGHTS} Model Insights</h3>", unsafe_allow_html=True)
+        st.markdown('''
+| ML Model Name                 | Observation about Model Performance                                                                                                                                                                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Logistic Regression**       | Strong baseline model. Handles imbalance well using `class_weight='balanced'`. Produces stable AUC and good recall. Interpretable and fast. One of the most reliable models for this dataset.                                                          |
+| **Decision Tree**             | Captures non-linear patterns but tends to overfit. High recall but low precision, resulting in many false positives. Less stable than ensemble methods.                                                                                                |
+| **k-Nearest Neighbors (kNN)** | Performs poorly due to high dimensional sparse features and class imbalance. Distance-based methods struggle when minority class is small. Accuracy appears high but predicts mostly majority class → near zero recall. Not suitable for this dataset. |
+| **Naive Bayes**               | Assumption of feature independence is violated. Predicts many positives causing extremely high recall but very low precision and accuracy. Weak overall performance.                                                                                   |
+| **Random Forest (Ensemble)**  | Much better than single tree. Reduces overfitting and improves stability. Good balance between precision and recall. Strong MCC. Reliable ensemble baseline.                                                                                           |
+| **XGBoost (Ensemble)**        | Best overall performer. Highest AUC and strong generalization. Handles imbalance well with boosting and class weighting. Captures complex patterns effectively. Final recommended model.                                                               |
+''')
 
     else:
         st.warning("No 'TARGET' column found in the uploaded data. Cannot display model performance.")

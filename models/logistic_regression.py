@@ -4,7 +4,7 @@ import joblib
 import os
 
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score, roc_auc_score,
@@ -26,7 +26,7 @@ data = pd.read_csv('data/application_train.csv')
 # data = data.sample(50000, random_state=42)
 
 # ======================================================
-# Feature engineering (same as XGBoost for fairness)
+# Feature Engineering
 # ======================================================
 data['CREDIT_INCOME_RATIO'] = data['AMT_CREDIT'] / data['AMT_INCOME_TOTAL']
 data['ANNUITY_INCOME_RATIO'] = data['AMT_ANNUITY'] / data['AMT_INCOME_TOTAL']
@@ -44,21 +44,24 @@ print("\nClass distribution:")
 print(y.value_counts(normalize=True))
 
 # ======================================================
-# Median imputation
+# Missing values
 # ======================================================
 for col in X.columns:
     if X[col].dtype != 'object':
         X[col] = X[col].fillna(X[col].median())
+    else:
+        X[col] = X[col].fillna('Unknown')
 
 # ======================================================
-# Label encoding (less features than one-hot)
+# One hot encoding
 # ======================================================
-for col in X.select_dtypes('object'):
-    le = LabelEncoder()
-    X[col] = le.fit_transform(X[col].astype(str))
+X = pd.get_dummies(X)
+
+# memory optimization ⭐
+X = X.astype(np.float32)
 
 # ======================================================
-# Stratified split ⭐ IMPORTANT
+# Stratified split
 # ======================================================
 X_train, X_test, y_train, y_test = train_test_split(
     X, y,
@@ -68,7 +71,13 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 # ======================================================
-# Scaling (FIT ONLY ON TRAIN ⭐ no leakage)
+# Align columns (safety for inference)
+# ======================================================
+feature_cols = list(X_train.columns)
+X_test = X_test.reindex(columns=feature_cols, fill_value=0)
+
+# ======================================================
+# Scaling (fit only on train)
 # ======================================================
 scaler = StandardScaler()
 
@@ -76,27 +85,28 @@ X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
 # ======================================================
-# Logistic Regression (imbalance handled)
+# Logistic Regression ⭐ upgraded
 # ======================================================
 model = LogisticRegression(
+    solver='saga',            # faster & better for large sparse
     max_iter=3000,
-    solver='lbfgs',
-    class_weight='balanced',   # ⭐ key
-    C=0.5,                     # regularization
-    n_jobs=1
+    class_weight='balanced',  # handle imbalance
+    C=0.5,
+    n_jobs=-1,
+    random_state=42
 )
 
 model.fit(X_train, y_train)
 
 # ======================================================
-# Probability predictions
+# Probabilities
 # ======================================================
 y_prob = model.predict_proba(X_test)[:, 1]
 
 print("\nProbability range:", y_prob.min(), "→", y_prob.max())
 
 # ======================================================
-# Threshold tuning (MCC based)
+# Threshold tuning (MCC)
 # ======================================================
 thresholds = np.linspace(0.05, 0.9, 30)
 
@@ -132,10 +142,11 @@ for k, v in results.items():
     print(f"{k:10s}: {v:.4f}")
 
 # ======================================================
-# Save
+# Save everything (VERY IMPORTANT for Streamlit)
 # ======================================================
 joblib.dump(model, 'models/pkl_files/logistic_regression.pkl')
 joblib.dump(scaler, 'models/pkl_files/logistic_regression_scaler.pkl')
-joblib.dump(list(X.columns), 'models/pkl_files/logistic_regression_features.pkl')
+joblib.dump(feature_cols, 'models/pkl_files/logistic_regression_features.pkl')
+joblib.dump(best_t, 'models/pkl_files/logistic_regression_threshold.pkl')
 
 print("\nModel saved successfully.")

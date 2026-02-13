@@ -3,10 +3,9 @@ import numpy as np
 import joblib
 import os
 
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.decomposition import PCA
 from sklearn.metrics import (
     accuracy_score, roc_auc_score,
     precision_score, recall_score,
@@ -18,14 +17,22 @@ from sklearn.metrics import (
 # ======================================================
 os.makedirs('models/pkl_files', exist_ok=True)
 
-# ======================================================
-# Load + sample
-# ======================================================
-data = pd.read_csv('data/application_train.csv')
-data = data.sample(10000, random_state=42)  # speed
+RANDOM_STATE = 42
+SAMPLE_SIZE = 40000   # KNN is slow → sample for speed
+
 
 # ======================================================
-# Feature engineering
+# Load dataset
+# ======================================================
+data = pd.read_csv('data/application_train.csv')
+
+# Speed optimization
+if len(data) > SAMPLE_SIZE:
+    data = data.sample(SAMPLE_SIZE, random_state=RANDOM_STATE)
+
+
+# ======================================================
+# Feature Engineering (same as other models → consistency)
 # ======================================================
 data['CREDIT_INCOME_RATIO'] = data['AMT_CREDIT'] / data['AMT_INCOME_TOTAL']
 data['ANNUITY_INCOME_RATIO'] = data['AMT_ANNUITY'] / data['AMT_INCOME_TOTAL']
@@ -33,97 +40,102 @@ data['EMPLOYED_AGE_RATIO'] = data['DAYS_EMPLOYED'] / data['DAYS_BIRTH']
 
 data.replace([np.inf, -np.inf], np.nan, inplace=True)
 
+
+# ======================================================
+# Split target
+# ======================================================
 X = data.drop('TARGET', axis=1)
 y = data['TARGET']
 
 print("\nClass distribution:")
 print(y.value_counts(normalize=True))
 
+
 # ======================================================
-# Median imputation
+# Median imputation + One-Hot Encoding (NOT label encoding)
 # ======================================================
 for col in X.columns:
-    if X[col].dtype != 'object':
+    if X[col].dtype == 'object':
+        X[col] = X[col].fillna('Unknown')
+    else:
         X[col] = X[col].fillna(X[col].median())
 
-# ======================================================
-# ⭐ FIX 1 — One Hot Encoding (NOT LabelEncoder)
-# ======================================================
 X = pd.get_dummies(X)
 
+
 # ======================================================
-# Stratified split
+# Stratified split ⭐ important for imbalance
 # ======================================================
 X_train, X_test, y_train, y_test = train_test_split(
     X, y,
     test_size=0.2,
     stratify=y,
-    random_state=42
+    random_state=RANDOM_STATE
 )
 
+
 # ======================================================
-# Scaling
+# Save feature columns for Streamlit alignment ⭐ CRITICAL
+# ======================================================
+train_cols = list(X_train.columns)
+
+X_test = X_test.reindex(columns=train_cols, fill_value=0)
+
+
+# ======================================================
+# Scaling (fit ONLY on train → no leakage)
 # ======================================================
 scaler = StandardScaler()
 
 X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
-# ======================================================
-# ⭐ FIX 2 — PCA (huge improvement for KNN)
-# ======================================================
-pca = PCA(n_components=50, random_state=42)
-
-X_train = pca.fit_transform(X_train)
-X_test = pca.transform(X_test)
 
 # ======================================================
-# ⭐ FIX 3 — GridSearch (no leakage)
+# Tuned KNN
 # ======================================================
-param_grid = {
-    "n_neighbors": range(15, 51, 4),
-    "weights": ["distance"],
-    "metric": ["euclidean"]
-}
-
-grid = GridSearchCV(
-    KNeighborsClassifier(n_jobs=-1),
-    param_grid,
-    scoring="roc_auc",
-    cv=3,
-    verbose=1,
+model = KNeighborsClassifier(
+    n_neighbors=35,        # larger = smoother decision boundary
+    weights='distance',    # helps imbalance
+    metric='euclidean',
     n_jobs=-1
 )
 
-grid.fit(X_train, y_train)
+model.fit(X_train, y_train)
 
-model = grid.best_estimator_
-
-print("\nBest parameters:", grid.best_params_)
 
 # ======================================================
-# Probabilities
+# Probability predictions
 # ======================================================
 y_prob = model.predict_proba(X_test)[:, 1]
 
+print("\nProbability range:", y_prob.min(), "→", y_prob.max())
+
+
 # ======================================================
-# Threshold tuning (MCC)
+# Threshold tuning (MCC best for imbalance)
 # ======================================================
 thresholds = np.linspace(0.05, 0.9, 30)
 
-best_t = 0
+best_t = 0.5
 best_mcc = -1
 
 for t in thresholds:
     preds = (y_prob >= t).astype(int)
     mcc = matthews_corrcoef(y_test, preds)
+
     if mcc > best_mcc:
         best_mcc = mcc
         best_t = t
 
 print("Best threshold:", best_t)
 
+
+# ======================================================
+# Final predictions
+# ======================================================
 y_pred = (y_prob >= best_t).astype(int)
+
 
 # ======================================================
 # Metrics
@@ -141,12 +153,12 @@ print("\n====== KNN Results ======")
 for k, v in results.items():
     print(f"{k:10s}: {v:.4f}")
 
+
 # ======================================================
-# Save
+# Save artifacts for Streamlit
 # ======================================================
 joblib.dump(model, 'models/pkl_files/knn.pkl')
 joblib.dump(scaler, 'models/pkl_files/knn_scaler.pkl')
-joblib.dump(pca, 'models/pkl_files/knn_pca.pkl')
-joblib.dump(list(X.columns), 'models/pkl_files/knn_features.pkl')
+joblib.dump(train_cols, 'models/pkl_files/knn_features.pkl')
 
 print("\nModel saved successfully.")
