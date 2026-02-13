@@ -4,7 +4,7 @@ import joblib
 import os
 
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.preprocessing import StandardScaler
 from sklearn.naive_bayes import GaussianNB
 from sklearn.metrics import (
     accuracy_score, roc_auc_score,
@@ -17,16 +17,15 @@ from sklearn.metrics import (
 # ======================================================
 os.makedirs('models/pkl_files', exist_ok=True)
 
+RANDOM_STATE = 42
+
 # ======================================================
 # Load dataset
 # ======================================================
 data = pd.read_csv('data/application_train.csv')
 
-# Optional: speed
-# data = data.sample(50000, random_state=42)
-
 # ======================================================
-# Feature engineering (same for fairness)
+# Feature engineering
 # ======================================================
 data['CREDIT_INCOME_RATIO'] = data['AMT_CREDIT'] / data['AMT_INCOME_TOTAL']
 data['ANNUITY_INCOME_RATIO'] = data['AMT_ANNUITY'] / data['AMT_INCOME_TOTAL']
@@ -44,31 +43,31 @@ print("\nClass distribution:")
 print(y.value_counts(normalize=True))
 
 # ======================================================
-# Median imputation
+# Missing values
 # ======================================================
 for col in X.columns:
-    if X[col].dtype != 'object':
+    if X[col].dtype == 'object':
+        X[col] = X[col].fillna('Unknown')
+    else:
         X[col] = X[col].fillna(X[col].median())
 
 # ======================================================
-# Label encoding ⭐ better than one-hot for NB
+# One-hot encoding ⭐ BEST for NB
 # ======================================================
-for col in X.select_dtypes('object'):
-    le = LabelEncoder()
-    X[col] = le.fit_transform(X[col].astype(str))
+X = pd.get_dummies(X)
 
 # ======================================================
-# Stratified split ⭐
+# Train/Test split
 # ======================================================
 X_train, X_test, y_train, y_test = train_test_split(
     X, y,
     test_size=0.2,
     stratify=y,
-    random_state=42
+    random_state=RANDOM_STATE
 )
 
 # ======================================================
-# Scaling (FIT ONLY ON TRAIN ⭐ no leakage)
+# Scaling (VERY IMPORTANT for NB)
 # ======================================================
 scaler = StandardScaler()
 
@@ -76,27 +75,25 @@ X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
 # ======================================================
-# Gaussian Naive Bayes
+# Model
 # ======================================================
-model = GaussianNB(
-    var_smoothing=1e-8  # helps stability
-)
+model = GaussianNB(var_smoothing=1e-8)
 
 model.fit(X_train, y_train)
 
 # ======================================================
-# Probabilities
+# Predict probabilities
 # ======================================================
 y_prob = model.predict_proba(X_test)[:, 1]
 
 print("\nProbability range:", y_prob.min(), "→", y_prob.max())
 
 # ======================================================
-# Threshold tuning (MCC)
+# Threshold tuning
 # ======================================================
-thresholds = np.linspace(0.05, 0.9, 25)
+thresholds = np.linspace(0.05, 0.9, 30)
 
-best_t = 0
+best_t = 0.5
 best_mcc = -1
 
 for t in thresholds:
@@ -109,11 +106,11 @@ for t in thresholds:
 
 print("Best threshold:", best_t)
 
-y_pred = (y_prob >= best_t).astype(int)
-
 # ======================================================
 # Metrics
 # ======================================================
+y_pred = (y_prob >= best_t).astype(int)
+
 results = {
     "Accuracy": accuracy_score(y_test, y_pred),
     "AUC": roc_auc_score(y_test, y_prob),
@@ -128,10 +125,11 @@ for k, v in results.items():
     print(f"{k:10s}: {v:.4f}")
 
 # ======================================================
-# Save
+# Save EVERYTHING ⭐
 # ======================================================
 joblib.dump(model, 'models/pkl_files/naive_bayes.pkl')
 joblib.dump(scaler, 'models/pkl_files/naive_bayes_scaler.pkl')
 joblib.dump(list(X.columns), 'models/pkl_files/naive_bayes_features.pkl')
+joblib.dump(best_t, 'models/pkl_files/naive_bayes_threshold.pkl')
 
-print("\nModel saved successfully.")
+print("\nModel + scaler + features + threshold saved successfully.")

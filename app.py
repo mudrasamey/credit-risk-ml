@@ -58,7 +58,7 @@ def _patch_sklearn_model(model):
             model.multi_class = 'ovr'
     return model
 
-@st.cache_data
+@st.cache_resource
 def load_model(model_name):
     model_path = f'models/pkl_files/{model_name}.pkl'
     if not os.path.exists(model_path):
@@ -67,14 +67,15 @@ def load_model(model_name):
     model = joblib.load(model_path)
     return _patch_sklearn_model(model)
 
-@st.cache_data
+@st.cache_resource
 def load_scaler(model_name):
     scaler_path = f'models/pkl_files/{model_name}_scaler.pkl'
     if not os.path.exists(scaler_path):
         return None
     return joblib.load(scaler_path)
 
-@st.cache_data
+@st.cache_resource
+
 def load_features(model_name):
     """Load saved feature columns for model alignment (fallback when feature_names_in_ not available)."""
     features_path = f'models/pkl_files/{model_name}_features.pkl'
@@ -82,19 +83,37 @@ def load_features(model_name):
         return None
     return joblib.load(features_path)
 
-# --- Data Preprocessing ---
-def preprocess_data(df):
-    X = df.drop('TARGET', axis=1, errors='ignore')
+@st.cache_resource
+def load_encoders():
+    return joblib.load("models/pkl_files/random_forest_encoders.pkl")
+
+@st.cache_data
+def preprocess_data(df, features, _encoders):
+
+    df = df.copy()
+
+    # same feature engineering
+    df['CREDIT_INCOME_RATIO'] = df['AMT_CREDIT'] / df['AMT_INCOME_TOTAL']
+    df['ANNUITY_INCOME_RATIO'] = df['AMT_ANNUITY'] / df['AMT_INCOME_TOTAL']
+    df['EMPLOYED_AGE_RATIO'] = df['DAYS_EMPLOYED'] / df['DAYS_BIRTH']
+
+    df.replace([np.inf, -np.inf], np.nan, inplace=True)
+
+    # numeric median fill
+    for col in df.columns:
+        if df[col].dtype != 'object':
+            df[col] = df[col].fillna(df[col].median())
+
+    # SAME encoders
+    for col, le in _encoders.items():
+        if col in df:
+            df[col] = le.transform(df[col].astype(str))
+
+    # align features
+    X = df.reindex(columns=features, fill_value=0)
+
     y = df['TARGET'] if 'TARGET' in df.columns else None
 
-    for col in X.columns:
-        if X[col].dtype == 'object':
-            mode_vals = X[col].mode()
-            X[col] = X[col].fillna(mode_vals[0] if len(mode_vals) > 0 else 'Unknown')
-        else:
-            X[col] = X[col].fillna(X[col].mean())
-    
-    X = pd.get_dummies(X)
     return X, y
 
 # --- Model Training Function ---
@@ -104,7 +123,7 @@ def train_models():
         "models/logistic_regression.py", "models/decision_tree.py", "models/knn.py",
         "models/naive_bayes.py", "models/random_forest.py", "models/train_xgboost.py"
     ]
-    
+
     progress_bar = st.progress(0)
     log_area = st.empty()
     log_content = ""
@@ -112,7 +131,7 @@ def train_models():
     for i, script in enumerate(scripts):
         log_content += f"--- Running {script} ---\n"
         log_area.code(log_content, height=300)
-        
+
         try:
             script_dir = os.path.dirname(os.path.abspath(__file__))
             result = subprocess.run(
@@ -137,7 +156,7 @@ def train_models():
 def main():
     if 'page' not in st.session_state:
         st.session_state.page = 'landing'
-    
+
     if st.session_state.page == 'landing':
         landing_page()
     elif st.session_state.page == 'dashboard':
@@ -156,7 +175,7 @@ def landing_page():
     """)
 
     st.header("Start Analysis")
-    
+
     with st.expander("Analyse Existing Dataset and Upload New Dataset", expanded=True):
         if st.button("Analyze Existing Dataset"):
             st.session_state.data = pd.read_csv('data/application_train.csv')
@@ -172,7 +191,7 @@ def landing_page():
             st.rerun()
 
     st.markdown("---")
-    
+
     st.markdown("""
         **If you encounter errors, please click the 'Train / Retrain All Models' button.** This ensures all models are up-to-date with the latest code.
     """)
@@ -187,7 +206,11 @@ def dashboard_page():
     st.markdown("---")
 
     data = st.session_state.data
-    X, y = preprocess_data(data)
+    # load RF encoders + features ONCE (for consistent preprocessing)
+    rf_features = load_features("random_forest")
+    rf_encoders = load_encoders()
+
+    X, y = preprocess_data(data, rf_features, rf_encoders)
 
     model_mapping = {
         'Logistic Regression': 'logistic_regression',
@@ -199,7 +222,7 @@ def dashboard_page():
     }
     all_model_names = list(model_mapping.keys())
 
-    
+
     st.sidebar.title("Sample Size")
     n_rows = len(X)
     max_sample = min(n_rows, 50000) if n_rows > 0 else 10000
@@ -246,7 +269,7 @@ def dashboard_page():
             sample_label = f"{sample_size:,}"
         else:
             sample_label = f"{n_rows:,} (all rows)"
-        
+
         raw_missing_pct = (data.isnull().sum().sum() / data.size) * 100
         raw_cat_features = len(data.select_dtypes(include=['object']).columns)
 
@@ -255,7 +278,7 @@ def dashboard_page():
         col_b.metric("Sample Used", sample_label)
         col_c.metric("Missing Values % (Raw)", f"{raw_missing_pct:.2f}%")
         col_d.metric("Categorical Features (Raw)", f"{raw_cat_features:,}")
-        
+
         scaled_models = "Logistic Regression, K-Nearest Neighbors, Naive Bayes"
         if y is not None:
             default_rate = y.mean()
@@ -267,23 +290,23 @@ def dashboard_page():
     st.markdown(f"<h3>{ICON_PREVIEW} Dataset Preview</h3>", unsafe_allow_html=True)
     st.dataframe(data.head())
     st.markdown("---")
-    
+
     if y is not None:
         st.markdown(f"<h3>{ICON_WARNING} Class Imbalance & Metric Interpretation</h3>", unsafe_allow_html=True)
-    
+
         default_rate = y.mean()
         non_default_rate = 1 - default_rate
         imbalance_ratio = int(non_default_rate / default_rate) if default_rate > 0 else float('inf')
         baseline_acc = max(default_rate, non_default_rate)
-    
+
         c1, c2, c3 = st.columns(3)
-    
+
         c1.metric("Default Rate (Positive Class)", f"{default_rate:.2%}")
         c2.metric("Majority Baseline Accuracy", f"{baseline_acc:.2%}")
         c3.metric("Imbalance Ratio", f"1 : {imbalance_ratio}" if default_rate > 0 else "N/A")
-    
+
         colA, colB = st.columns(2)
-    
+
         with colA:
             st.subheader("Class Distribution")
             fig, ax = plt.subplots(figsize=(6, 4))
@@ -301,7 +324,7 @@ def dashboard_page():
             ax.set_ylabel("Count")
             st.pyplot(fig)
             plt.close()
-    
+
         st.info(
             """
     ### 📌 Why are Precision / F1 lower?
@@ -321,9 +344,7 @@ def dashboard_page():
     if y is not None:
         st.markdown(f"<h3>{ICON_MODEL} Model Comparison</h3>", unsafe_allow_html=True)
         if sample_size and n_rows > sample_size:
-            sample_idx = X.sample(n=sample_size, random_state=42).index
-            X_eval = X.loc[sample_idx]
-            y_eval = y.loc[sample_idx]
+            X_eval, y_eval = X.sample(sample_size, random_state=42), y.sample(sample_size, random_state=42)
             st.info(f"Dataset has {n_rows:,} rows. Using a random sample of {sample_size:,} for model comparison.")
         else:
             X_eval, y_eval = X, y
@@ -332,7 +353,7 @@ def dashboard_page():
             results = []
             model_predictions = {}
             model_probas = {}
-            
+
             for name in selected_models:
                 file = model_mapping[name]
                 model = load_model(file)
@@ -344,24 +365,36 @@ def dashboard_page():
                     feature_cols = model.feature_names_in_
                 else:
                     feature_cols = load_features(file)
-                
+
                 if feature_cols is None:
                     st.warning(f"Could not get feature columns for {name}. Skipping.")
                     continue
 
                 X_aligned = X_eval.reindex(columns=feature_cols, fill_value=0)
-                
+
                 scaler = load_scaler(file)
+
                 if scaler:
-                    X_scaled = scaler.transform(X_aligned)
-                    X_scaled = pd.DataFrame(X_scaled, columns=X_aligned.columns)
+                    X_scaled = pd.DataFrame(
+                        scaler.transform(X_aligned),
+                        columns=feature_cols,
+                        index=X_aligned.index
+                    )
                 else:
                     X_scaled = X_aligned
 
                 X_scaled = X_scaled[list(feature_cols)]
 
                 y_pred_proba = model.predict_proba(X_scaled)[:, 1]
-                y_pred = (y_pred_proba >= prob_threshold).astype(int)
+                # load saved threshold if exists
+                threshold_path = f"models/pkl_files/{file}_threshold.pkl"
+
+                if os.path.exists(threshold_path):
+                    threshold = joblib.load(threshold_path)
+                else:
+                    threshold = prob_threshold  # fallback to slider
+
+                y_pred = (y_pred_proba >= threshold).astype(int)
 
                 model_predictions[name] = y_pred
                 model_probas[name] = y_pred_proba
@@ -396,7 +429,7 @@ def dashboard_page():
                         offset = 0.02 if h >= 0 else -0.05
                         ax.text(bar.get_x() + bar.get_width()/2, h + offset,
                                 f'{h:.2f}', ha='center', va='bottom' if h >= 0 else 'top', fontsize=8)
-            
+
             for i in range(num_metrics, len(axes)):
                 axes[i].set_visible(False)
 
@@ -439,7 +472,7 @@ def dashboard_page():
                 options=selected_models,
                 key='deep_dive_select'
             )
-            
+
             if deep_dive_model_name:
                 model_file = model_mapping[deep_dive_model_name]
                 model = load_model(model_file)
@@ -450,7 +483,7 @@ def dashboard_page():
                 with col1:
                     st.subheader("ROC and Precision-Recall Curves")
                     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-                    
+
                     # ROC Curve
                     fpr, tpr, _ = roc_curve(y_eval, y_pred_proba)
                     ax1.plot(fpr, tpr, color='blue', lw=2, label=f'AUC = {roc_auc_score(y_eval, y_pred_proba):.2f}')
@@ -466,14 +499,14 @@ def dashboard_page():
                     ax2.set_title('Precision-Recall Curve')
                     ax2.set_xlabel('Recall')
                     ax2.set_ylabel('Precision')
-                    
+
                     plt.tight_layout()
                     st.pyplot(fig)
                     plt.close()
 
                 with col2:
                     st.subheader("Feature Importance")
-                    
+
                     feature_importances = None
                     if hasattr(model, 'feature_importances_'):
                         feature_importances = model.feature_importances_
@@ -486,11 +519,11 @@ def dashboard_page():
                             feature_cols = model.feature_names_in_
                         else:
                             feature_cols = load_features(model_file)
-                        
+
                         if feature_cols is not None:
                             imp_df = pd.DataFrame({'feature': feature_cols, 'importance': feature_importances})
                             imp_df = imp_df.sort_values('importance', ascending=False).head(15)
-                            
+
                             fig, ax = plt.subplots(figsize=(10, 6))
                             sns.barplot(x='importance', y='feature', data=imp_df, ax=ax)
                             ax.set_title('Top 15 Features')
@@ -500,7 +533,7 @@ def dashboard_page():
                             st.info("Could not determine feature names for importance plot.")
                     else:
                         st.info("Feature importance is not available for this model type (e.g., K-Nearest Neighbors).")
-        
+
         st.markdown("---")
         st.markdown(f"<h3>{ICON_INSIGHTS} Model Insights</h3>", unsafe_allow_html=True)
         st.markdown('''

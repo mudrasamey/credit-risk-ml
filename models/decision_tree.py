@@ -16,17 +16,15 @@ from sklearn.metrics import (
 # Setup
 # ======================================================
 os.makedirs('models/pkl_files', exist_ok=True)
+RANDOM_STATE = 42
 
 # ======================================================
 # Load dataset
 # ======================================================
 data = pd.read_csv('data/application_train.csv')
 
-# Optional speed
-# data = data.sample(50000, random_state=42)
-
 # ======================================================
-# Feature engineering (same as other models)
+# Feature engineering
 # ======================================================
 data['CREDIT_INCOME_RATIO'] = data['AMT_CREDIT'] / data['AMT_INCOME_TOTAL']
 data['ANNUITY_INCOME_RATIO'] = data['AMT_ANNUITY'] / data['AMT_INCOME_TOTAL']
@@ -40,9 +38,6 @@ data.replace([np.inf, -np.inf], np.nan, inplace=True)
 X = data.drop('TARGET', axis=1)
 y = data['TARGET']
 
-print("\nClass distribution:")
-print(y.value_counts(normalize=True))
-
 # ======================================================
 # Median imputation
 # ======================================================
@@ -51,31 +46,34 @@ for col in X.columns:
         X[col] = X[col].fillna(X[col].median())
 
 # ======================================================
-# Label Encoding ⭐ trees prefer this
+# Label encoding (trees prefer this)
 # ======================================================
+encoders = {}
+
 for col in X.select_dtypes('object'):
     le = LabelEncoder()
     X[col] = le.fit_transform(X[col].astype(str))
+    encoders[col] = le
 
 # ======================================================
-# Stratified split ⭐ critical
+# Train/Test split
 # ======================================================
 X_train, X_test, y_train, y_test = train_test_split(
     X, y,
-    test_size=0.2,
     stratify=y,
-    random_state=42
+    test_size=0.2,
+    random_state=RANDOM_STATE
 )
 
 # ======================================================
-# Tuned Decision Tree ⭐ prevents overfitting
+# Decision Tree (regularized)
 # ======================================================
 model = DecisionTreeClassifier(
-    max_depth=6,                 # ⭐ MOST IMPORTANT
+    max_depth=6,
     min_samples_leaf=100,
     min_samples_split=500,
     class_weight='balanced',
-    random_state=42
+    random_state=RANDOM_STATE
 )
 
 model.fit(X_train, y_train)
@@ -85,10 +83,8 @@ model.fit(X_train, y_train)
 # ======================================================
 y_prob = model.predict_proba(X_test)[:, 1]
 
-print("\nProbability range:", y_prob.min(), "→", y_prob.max())
-
 # ======================================================
-# Threshold tuning (MCC based)
+# Threshold tuning (MCC best for imbalance)
 # ======================================================
 thresholds = np.linspace(0.05, 0.9, 30)
 
@@ -124,9 +120,11 @@ for k, v in results.items():
     print(f"{k:10s}: {v:.4f}")
 
 # ======================================================
-# Save
+# Save EVERYTHING (important for Streamlit)
 # ======================================================
 joblib.dump(model, 'models/pkl_files/decision_tree.pkl')
 joblib.dump(list(X.columns), 'models/pkl_files/decision_tree_features.pkl')
+joblib.dump(encoders, 'models/pkl_files/decision_tree_encoders.pkl')
+joblib.dump(best_t, 'models/pkl_files/decision_tree_threshold.pkl')
 
-print("\nModel saved successfully.")
+print("\nModel + features + threshold saved successfully.")

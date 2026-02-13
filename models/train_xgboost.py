@@ -20,22 +20,23 @@ from sklearn.metrics import (
 # ======================================================
 os.makedirs('models/pkl_files', exist_ok=True)
 
+RANDOM_STATE = 42
+
 # ======================================================
 # Load dataset
 # ======================================================
 data = pd.read_csv('data/application_train.csv')
 
-# Optional: speed up experiments (comment out for full training)
-# data = data.sample(50000, random_state=42)
+# Optional speed up
+# data = data.sample(60000, random_state=RANDOM_STATE)
 
 # ======================================================
-# Feature Engineering  ⭐ BIG BOOST
+# Feature Engineering
 # ======================================================
 data['CREDIT_INCOME_RATIO'] = data['AMT_CREDIT'] / data['AMT_INCOME_TOTAL']
 data['ANNUITY_INCOME_RATIO'] = data['AMT_ANNUITY'] / data['AMT_INCOME_TOTAL']
 data['EMPLOYED_AGE_RATIO'] = data['DAYS_EMPLOYED'] / data['DAYS_BIRTH']
 
-# Replace inf values
 data.replace([np.inf, -np.inf], np.nan, inplace=True)
 
 # ======================================================
@@ -48,27 +49,30 @@ print("\nClass distribution:")
 print(y.value_counts(normalize=True))
 
 # ======================================================
-# Missing values (median works best for trees)
+# Missing value handling (median)
 # ======================================================
 for col in X.columns:
     if X[col].dtype != 'object':
         X[col] = X[col].fillna(X[col].median())
 
 # ======================================================
-# Label Encoding ⭐ better than one-hot for XGBoost
+# Label Encoding + SAVE encoders ⭐ CRITICAL
 # ======================================================
+encoders = {}
+
 for col in X.select_dtypes('object').columns:
     le = LabelEncoder()
     X[col] = le.fit_transform(X[col].astype(str))
+    encoders[col] = le
 
 # ======================================================
-# Train-test split (STRATIFIED ⭐ critical)
+# Train/Test split (STRATIFIED)
 # ======================================================
 X_train, X_test, y_train, y_test = train_test_split(
     X, y,
     test_size=0.2,
     stratify=y,
-    random_state=42
+    random_state=RANDOM_STATE
 )
 
 # ======================================================
@@ -81,7 +85,7 @@ scale_pos_weight = neg / pos
 print("scale_pos_weight:", scale_pos_weight)
 
 # ======================================================
-# Tuned XGBoost ⭐ optimized params
+# Tuned XGBoost
 # ======================================================
 model = xgb.XGBClassifier(
     n_estimators=800,
@@ -96,25 +100,25 @@ model = xgb.XGBClassifier(
     scale_pos_weight=scale_pos_weight,
     eval_metric='auc',
     tree_method='hist',
-    random_state=42,
+    random_state=RANDOM_STATE,
     n_jobs=-1
 )
 
 model.fit(X_train, y_train)
 
 # ======================================================
-# Predict probabilities
+# Probability predictions
 # ======================================================
 y_prob = model.predict_proba(X_test)[:, 1]
 
 print("\nProbability range:", y_prob.min(), "→", y_prob.max())
 
 # ======================================================
-# Threshold search (MCC based ⭐ best for imbalance)
+# Threshold tuning (MCC best for imbalance)
 # ======================================================
-thresholds = np.linspace(0.05, 0.9, 30)
+thresholds = np.linspace(0.3, 0.7, 40)
 
-best_t = 0
+best_t = 0.67
 best_mcc = -1
 
 for t in thresholds:
@@ -127,11 +131,11 @@ for t in thresholds:
 
 print("\nBest threshold:", best_t)
 
+# ======================================================
+# Final metrics
+# ======================================================
 y_pred = (y_prob >= best_t).astype(int)
 
-# ======================================================
-# Metrics
-# ======================================================
 results = {
     "Accuracy": accuracy_score(y_test, y_pred),
     "AUC": roc_auc_score(y_test, y_prob),
@@ -141,14 +145,16 @@ results = {
     "MCC": matthews_corrcoef(y_test, y_pred)
 }
 
-print("\n====== Final Metrics ======")
+print("\n====== XGBoost Results ======")
 for k, v in results.items():
     print(f"{k:10s}: {v:.4f}")
 
 # ======================================================
-# Save model
+# Save EVERYTHING ⭐ REQUIRED FOR STREAMLIT
 # ======================================================
 joblib.dump(model, 'models/pkl_files/xgboost.pkl')
 joblib.dump(list(X.columns), 'models/pkl_files/xgboost_features.pkl')
+joblib.dump(encoders, 'models/pkl_files/xgboost_encoders.pkl')
+joblib.dump(best_t, 'models/pkl_files/xgboost_threshold.pkl')
 
-print("\nModel saved successfully.")
+print("\nModel + features + encoders + threshold saved successfully.")

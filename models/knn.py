@@ -1,3 +1,7 @@
+# ======================================================
+# KNN - Credit Risk Classification (PIPELINE VERSION)
+# ======================================================
+
 import pandas as pd
 import numpy as np
 import joblib
@@ -6,11 +10,16 @@ import os
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.decomposition import PCA
 from sklearn.metrics import (
     accuracy_score, roc_auc_score,
     precision_score, recall_score,
     f1_score, matthews_corrcoef
 )
+
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline   # ⭐ important
+
 
 # ======================================================
 # Setup
@@ -18,7 +27,7 @@ from sklearn.metrics import (
 os.makedirs('models/pkl_files', exist_ok=True)
 
 RANDOM_STATE = 42
-SAMPLE_SIZE = 40000   # KNN is slow → sample for speed
+SAMPLE_SIZE = 40000
 
 
 # ======================================================
@@ -26,13 +35,12 @@ SAMPLE_SIZE = 40000   # KNN is slow → sample for speed
 # ======================================================
 data = pd.read_csv('data/application_train.csv')
 
-# Speed optimization
 if len(data) > SAMPLE_SIZE:
     data = data.sample(SAMPLE_SIZE, random_state=RANDOM_STATE)
 
 
 # ======================================================
-# Feature Engineering (same as other models → consistency)
+# Feature Engineering
 # ======================================================
 data['CREDIT_INCOME_RATIO'] = data['AMT_CREDIT'] / data['AMT_INCOME_TOTAL']
 data['ANNUITY_INCOME_RATIO'] = data['AMT_ANNUITY'] / data['AMT_INCOME_TOTAL']
@@ -52,7 +60,7 @@ print(y.value_counts(normalize=True))
 
 
 # ======================================================
-# Median imputation + One-Hot Encoding (NOT label encoding)
+# Missing values + One-hot
 # ======================================================
 for col in X.columns:
     if X[col].dtype == 'object':
@@ -64,7 +72,7 @@ X = pd.get_dummies(X)
 
 
 # ======================================================
-# Stratified split ⭐ important for imbalance
+# Train-test split
 # ======================================================
 X_train, X_test, y_train, y_test = train_test_split(
     X, y,
@@ -75,47 +83,44 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 
 # ======================================================
-# Save feature columns for Streamlit alignment ⭐ CRITICAL
+# Save feature list for Streamlit alignment
 # ======================================================
 train_cols = list(X_train.columns)
-
 X_test = X_test.reindex(columns=train_cols, fill_value=0)
 
 
 # ======================================================
-# Scaling (fit ONLY on train → no leakage)
+# ⭐ KNN PIPELINE
 # ======================================================
-scaler = StandardScaler()
-
-X_train = scaler.fit_transform(X_train)
-X_test = scaler.transform(X_test)
+model = Pipeline(steps=[
+    ('scaler', StandardScaler()),      # scaling
+    ('smote', SMOTE(random_state=RANDOM_STATE)),  # imbalance fix
+    ('pca', PCA(n_components=50)),     # dimensionality reduction
+    ('knn', KNeighborsClassifier(
+        n_neighbors=5,
+        weights='distance',
+        metric='euclidean',
+        n_jobs=-1
+    ))
+])
 
 
 # ======================================================
-# Tuned KNN
+# Train
 # ======================================================
-model = KNeighborsClassifier(
-    n_neighbors=35,        # larger = smoother decision boundary
-    weights='distance',    # helps imbalance
-    metric='euclidean',
-    n_jobs=-1
-)
-
 model.fit(X_train, y_train)
 
 
 # ======================================================
-# Probability predictions
+# Probabilities
 # ======================================================
 y_prob = model.predict_proba(X_test)[:, 1]
 
-print("\nProbability range:", y_prob.min(), "→", y_prob.max())
-
 
 # ======================================================
-# Threshold tuning (MCC best for imbalance)
+# Threshold tuning (MCC)
 # ======================================================
-thresholds = np.linspace(0.05, 0.9, 30)
+thresholds = np.linspace(0.05, 0.8, 40)
 
 best_t = 0.5
 best_mcc = -1
@@ -155,10 +160,9 @@ for k, v in results.items():
 
 
 # ======================================================
-# Save artifacts for Streamlit
+# Save model + features
 # ======================================================
 joblib.dump(model, 'models/pkl_files/knn.pkl')
-joblib.dump(scaler, 'models/pkl_files/knn_scaler.pkl')
 joblib.dump(train_cols, 'models/pkl_files/knn_features.pkl')
 
-print("\nModel saved successfully.")
+print("\nPipeline model saved successfully.")
