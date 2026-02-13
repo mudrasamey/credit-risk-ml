@@ -1,38 +1,51 @@
 # 💳 Credit Risk / Loan Default Prediction
 
-## 📌 Overview
-This project builds multiple **Machine Learning models** to predict whether a customer will **default on a loan**.
-
-Target:
-- 1 → Default
-- 0 → No Default
-
-The goal is to help financial institutions **minimize risk** and **improve loan approval decisions**.
+## 📌 Problem Statement
+The goal of this project is to implement and evaluate multiple Machine Learning classification models to predict whether a customer will default on a loan (Target 1) or not (Target 0). This is a critical task for financial institutions to minimize credit risk and improve the accuracy of loan approval decisions. The project follows a full end-to-end workflow: data preprocessing, model implementation, evaluation using multiple metrics, and deployment via a Streamlit web application.
 
 ---
 
-## 📊 Dataset
+## 📊 Dataset Description
 
-**Home Credit Default Risk (Kaggle)**
+### Overview
+- **Home Credit Default Risk (Kaggle)**
+- **Dataset Source:** Home Credit Default Risk (Kaggle)
+- **Dataset URL:** https://www.kaggle.com/competitions/home-credit-default-risk/data
+- **Instance Size:** 307,511
+- **Feature Size:**  122 attributes
+- **Target Variable:** Binary (Categorical)
+  - 0: No Default
+  - 1: Default
 
-Features include:
-- Income
-- Employment details
-- Credit history
-- Demographics
-- Loan information
+### Dataset Challenges
+**1. Heavily Imbalanced Classes**
+The dataset is heavily imbalanced (~92% non-default vs ~8% default).. Accuracy can be misleading.
 
-### Class Distribution
-- No Default → ~92%
-- Default → ~8%
+**2. High Dimensionality**
+The dataset contains 122 features, which may lead to overfitting and increased model complexity.
 
-This creates a **highly imbalanced classification problem**, so:
-- Accuracy is misleading
-- AUC, Recall, MCC are more meaningful
+**3. Missing Values**
+Several features contain missing or incomplete information that require preprocessing.
 
----
+**4. Feature Engineering Complexity**
+Many variables (especially credit history and bureau data) require transformation or aggregation.
 
-## ⚙️ Machine Learning Pipeline
+### Feature Description
+A few key original and engineered features include:
+
+**Original Features:**
+- **`SK_ID_CURR`**: ID of the loan application.
+- **`TARGET`**: The target variable (1 - client with payment difficulties, 0 - all other cases).
+- **`AMT_INCOME_TOTAL`**: Total income of the client.
+- **`AMT_CREDIT`**: Credit amount of the loan.
+- **`AMT_ANNUITY`**: Loan annuity.
+- **`DAYS_BIRTH`**: Client's age in days at the time of application.
+- **`DAYS_EMPLOYED`**: How many days before the application the person started current employment.
+
+**Engineered Features:**
+- **`CREDIT_INCOME_RATIO`**: The ratio of the credit amount to the client's total income (`AMT_CREDIT` / `AMT_INCOME_TOTAL`).
+- **`ANNUITY_INCOME_RATIO`**: The ratio of the loan annuity to the client's total income (`AMT_ANNUITY` / `AMT_INCOME_TOTAL`).
+- **`EMPLOYED_AGE_RATIO`**: The ratio of days employed to the client's age (`DAYS_EMPLOYED` / `DAYS_BIRTH`).
 
 ### Data Preprocessing
 - Missing value imputation (median/mode)
@@ -48,33 +61,16 @@ This creates a **highly imbalanced classification problem**, so:
 
 ## 🤖 Models Implemented
 
-- Logistic Regression
-- Decision Tree
-- K-Nearest Neighbors (KNN)
-- Naive Bayes
-- Random Forest
-- XGBoost
+### Evaluation Matrix
 
----
-
-## 🎯 Threshold Optimization
-
-Instead of using default probability = 0.5:
-- Threshold tuned using **MCC (Matthews Correlation Coefficient)**
-- Improves minority class detection
-
----
-
-## 📈 Final Model Comparison
-
-| Model | Accuracy | AUC | Precision | Recall | F1 Score | MCC |
-|-------|----------|-------|-----------|-----------|-----------|-----------|
-| Logistic Regression | 0.8544 | 0.7311 | 0.2441 | 0.3669 | 0.2932 | 0.2213 |
-| Decision Tree | 0.7262 | 0.7172 | 0.1679 | 0.5881 | 0.2612 | 0.1982 |
-| KNN | 0.9177 | 0.8136 | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
-| Naive Bayes | 0.1453 | 0.5780 | 0.0846 | 0.9563 | 0.1555 | 0.0310 |
-| Random Forest | 0.8792 | 0.7465 | 0.2706 | 0.2758 | 0.2732 | 0.2073 |
-| XGBoost | 0.9118 | 0.7587 | 0.4007 | 0.1446 | 0.2125 | 0.2027 |
+| Model                  | Accuracy | AUC     | Precision | Recall  | F1 Score | MCC     |
+|------------------------|----------|---------|-----------|---------|----------|---------|
+| Logistic Regression    | 0.8755   | 0.7327  | 0.2613    | 0.2807  | 0.2707   | 0.2028  |
+| Decision Tree          | 0.7817   | 0.7267  | 0.1912    | 0.5115  | 0.2783   | 0.2105  |
+| K-Nearest Neighbors    | 0.7509   | 0.5288  | 0.1036    | 0.2649  | 0.1490   | 0.0400  |
+| Naive Bayes            | 0.1094   | 0.5132  | 0.0838    | 0.9891  | 0.1545   | 0.0321  |
+| Random Forest          | 0.5756   | 0.8093  | 0.1496    | 0.8870  | 0.2560   | 0.2390  |
+| XGBoost                | 0.8626   | 0.7918  | 0.2769    | 0.4156  | 0.3324   | 0.2658  |
 
 ---
 
@@ -195,10 +191,3 @@ credit-risk-ml/
 - SHAP explainability
 - Probability calibration
 - Cost-sensitive learning
-
----
-
-## 👤 Author
-
-Amey Mudras  
-Senior Full Stack Developer | Machine Learning Practitioner  
