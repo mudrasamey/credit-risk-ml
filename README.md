@@ -105,6 +105,28 @@ Because 92% of customers don’t default, predicting "No Default" always gives h
 
 
 ---
+## 🏆 Key Findings
+
+### ✅ Best Overall → XGBoost
+- Highest MCC
+- High AUC
+- Balanced precision & recall
+- Strong generalization
+
+### ✅ Strong Baseline → Logistic Regression
+- Stable 
+- Interpretable
+- Fast
+
+## ⚠ Random Forest
+- Very high recall
+- Slightly lower precision
+
+## ❌ Poor performers
+- KNN → struggles in high dimensions
+- Naive Bayes → independence assumption violated
+
+---
 
 ## 🖥️ Streamlit Dashboard
 
