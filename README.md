@@ -112,6 +112,38 @@ Six machine learning models were implemented and evaluated.
    ```bash
    streamlit run app.py
    ```
+
+---
+
+## 🛠 Setup on a New Machine
+Since large data files and model artifacts are excluded from Git (see `.gitignore`), follow these steps when cloning the repository to a new machine:
+
+1. **Clone the Repository**:
+   ```bash
+   git clone <repository-url>
+   cd credit-risk-ml
+   ```
+
+2. **Install Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Provide the Dataset**:
+   - Download `application_train.csv` from Kaggle.
+   - Place it in the `data/` directory.
+
+4. **Regenerate Cache & Models**:
+   Run the following commands to recreate the preprocessed data and model `.pkl` files:
+   ```bash
+   python prepare_data.py        # Recreates data/cache/
+   python retrain_all_models.py  # Recreates models/pkl_files/
+   ```
+
+5. **Start Dashboard**:
+   ```bash
+   streamlit run app.py
+   ```
    
 ## 6. Project Structure
 ```

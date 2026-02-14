@@ -186,8 +186,8 @@ def landing_page():
                     
                     # Sample from this Test Set to be manageable
                     # Increased to 10,000 per user request for stability
-                    if len(test_df) > 10000:
-                        test_df = test_df.sample(10000, random_state=42)
+                    if len(test_df) > 5000:
+                        test_df = test_df.sample(5000, random_state=42)
                         
                     st.session_state.data = test_df
                     st.session_state.page = 'dashboard'
