@@ -291,16 +291,17 @@ def dashboard_page():
 
     if y is not None:
         st.markdown(f"<h3>{ICON_WARNING} Class Imbalance & Metric Interpretation</h3>", unsafe_allow_html=True)
+        
+        with st.expander("Show imbalance statistics", expanded=True):
+            default_rate = y.mean()
+            non_default_rate = 1 - default_rate
+            imbalance_ratio = int(non_default_rate / default_rate) if default_rate > 0 else float('inf')
+            baseline_acc = max(default_rate, non_default_rate)
 
-        default_rate = y.mean()
-        non_default_rate = 1 - default_rate
-        imbalance_ratio = int(non_default_rate / default_rate) if default_rate > 0 else float('inf')
-        baseline_acc = max(default_rate, non_default_rate)
-
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Default Rate (Positive)", f"{default_rate:.2%}")
-        c2.metric("Majority Baseline Acc", f"{baseline_acc:.2%}")
-        c3.metric("Imbalance Ratio", f"1 : {imbalance_ratio}" if default_rate > 0 else "N/A")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Default Rate (Positive)", f"{default_rate:.2%}")
+            c2.metric("Majority Baseline Acc", f"{baseline_acc:.2%}")
+            c3.metric("Imbalance Ratio", f"1 : {imbalance_ratio}" if default_rate > 0 else "N/A")
 
         colA, colB = st.columns(2)
 
@@ -324,11 +325,12 @@ def dashboard_page():
 
         st.info(
             """
-            ### 📌 Why are Precision / F1 lower?
+            ### 📌 Imbalance & Metric Interpretation
             This dataset is **highly imbalanced** (~8% defaults).
-            • Predicting `0` (No Default) for everyone gives high accuracy but is useless.
-            • **Recall (Sensitivity)** is critical here to catch defaults.
-            • **AUC & MCC** are better comprehensive metrics.
+            
+            - **Baseline Accuracy**: Predicting "No Default" for everyone gives ~92% accuracy but is useless for risk detection.
+            - **Recall (Sensitivity)**: This is critical. We must catch as many actual defaults as possible to mitigate risk.
+            - **Comprehensive Metrics**: AUC and MCC provide a more reliable measure of model performance than accuracy.
             """
         )
         st.markdown("---")

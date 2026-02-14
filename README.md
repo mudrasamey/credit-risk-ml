@@ -143,7 +143,6 @@ credit-risk-ml/
 ├── requirements.txt            # Python dependencies
 └── README.md                   # Project documentation
 ```
-
 ## 7. How to use the app
 
 1.  **Navigate to the sidebar** on the left.
@@ -157,3 +156,4 @@ credit-risk-ml/
 The live application is deployed and accessible at the following URL:
 
 https://credit-risk-ml.streamlit.app/
+
