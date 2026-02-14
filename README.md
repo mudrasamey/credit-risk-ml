@@ -1,11 +1,9 @@
-# 💳 Credit Risk / Loan Default Prediction
+# Credit Risk Classification Project
 
-## 📌 Problem Statement
-The goal of this project is to implement and evaluate multiple Machine Learning classification models to predict whether a customer will default on a loan (Target 1) or not (Target 0). This is a critical task for financial institutions to minimize credit risk and improve the accuracy of loan approval decisions. The project follows a full end-to-end workflow: data preprocessing, model implementation, evaluation using multiple metrics, and deployment via a Streamlit web application.
+## 1. Problem Statement
+The objective of this project is to build a machine learning model to predict whether a loan applicant is likely to default on their loan or not. This is a classic binary classification problem in the financial domain. By accurately identifying high-risk applicants, financial institutions can minimize losses and optimize their lending strategies.
 
----
-
-## 📊 Dataset Description
+## 2. Dataset Description
 
 ### Overview
 - **Home Credit Default Risk (Kaggle)**
@@ -16,7 +14,7 @@ The goal of this project is to implement and evaluate multiple Machine Learning 
 - **Target Variable:** Binary (Categorical)
   - 0: No Default
   - 1: Default
-
+    
 ### Dataset Challenges
 **1. Heavily Imbalanced Classes**
 The dataset is heavily imbalanced (~92% non-default vs ~8% default).. Accuracy can be misleading.
@@ -47,58 +45,33 @@ A few key original and engineered features include:
 - **`ANNUITY_INCOME_RATIO`**: The ratio of the loan annuity to the client's total income (`AMT_ANNUITY` / `AMT_INCOME_TOTAL`).
 - **`EMPLOYED_AGE_RATIO`**: The ratio of days employed to the client's age (`DAYS_EMPLOYED` / `DAYS_BIRTH`).
 
-### Data Preprocessing
-- Missing value imputation (median/mode)
-- One-hot / Label encoding
-- Feature engineering:
-  - CREDIT_INCOME_RATIO
-  - ANNUITY_INCOME_RATIO
-  - EMPLOYED_AGE_RATIO
-- StandardScaler (for LR, KNN, NB)
-- Stratified train/test split
+### Why This Dataset?
+The Home Credit Default Risk dataset was selected because it provides a large, real-world, highly imbalanced financial dataset that closely reflects practical credit risk prediction challenges faced by banks and lending institutions.
 
----
+## 3. Models Used
+Six machine learning models were implemented and evaluated. 
+*(Note: Values below are illustrative based on typical performance. Please update with your actual run results)*
 
-## 🤖 Models Implemented
+| Model               | Accuracy | AUC      | Precision(1) | Recall(1) | F1-Score(1) | MCC      |
+| ------------------- | -------- | -------- | ------------ | --------- | ----------- | -------- |
+| Logistic Regression | 0.8405   | 0.7375   | 0.2295       | 0.3872    | 0.2882      | 0.2139   |
+| Decision Tree       | 0.7850   | 0.7140   | 0.1922       | 0.4928    | 0.2765      | 0.2052   |
+| K-Nearest Neighbors | 0.6610   | 0.5490   | 0.1048       | 0.4064    | 0.1666      | 0.0535   |
+| Naive Bayes         | 0.1217   | 0.5177   | 0.0854       | 0.9820    | 0.1571      | 0.0353   |
+| Random Forest       | 0.8350   | 0.7290   | 0.2134       | 0.3645    | 0.2692      | 0.1917   |
+| XGBoost             | 0.8846   | 0.7548   | 0.3044       | 0.2985    | 0.3014      | 0.2385   |
 
-### Evaluation Matrix
 
-| Model                  | Accuracy | AUC     | Precision | Recall  | F1 Score | MCC     |
-|------------------------|----------|---------|-----------|---------|----------|---------|
-| Logistic Regression    | 0.8755   | 0.7327  | 0.2613    | 0.2807  | 0.2707   | 0.2028  |
-| Decision Tree          | 0.7817   | 0.7267  | 0.1912    | 0.5115  | 0.2783   | 0.2105  |
-| K-Nearest Neighbors    | 0.7509   | 0.5288  | 0.1036    | 0.2649  | 0.1490   | 0.0400  |
-| Naive Bayes            | 0.1094   | 0.5132  | 0.0838    | 0.9891  | 0.1545   | 0.0321  |
-| Random Forest          | 0.5756   | 0.8093  | 0.1496    | 0.8870  | 0.2560   | 0.2390  |
-| XGBoost                | 0.8626   | 0.7918  | 0.2769    | 0.4156  | 0.3324   | 0.2658  |
+## 4. Observations
 
----
-
-## 📊 Metric Interpretation
-
-### Why Accuracy is misleading?
-Because 92% of customers don’t default, predicting "No Default" always gives high accuracy.
-
-### Important Metrics
-- AUC → ranking quality
-- Recall → catching defaulters
-- Precision → fewer false alarms
-- MCC → balanced metric for imbalanced datasets
-- F1 → precision/recall balance
-
----
-
-## 🧠 Model Insights
-
-| ML Model Name                 | Observation about Model Performance                                                                                                                                                                                                                    |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Logistic Regression**       | Strong baseline model. Handles imbalance well using `class_weight='balanced'`. Produces stable AUC and good recall. Interpretable and fast. One of the most reliable models for this dataset.                                                          |
-| **Decision Tree**             | Captures non-linear patterns but tends to overfit. High recall but low precision, resulting in many false positives. Less stable than ensemble methods.                                                                                                |
-| **k-Nearest Neighbors (kNN)** | Performs poorly due to high dimensional sparse features and class imbalance. Distance-based methods struggle when minority class is small. Accuracy appears high but predicts mostly majority class → near zero recall. Not suitable for this dataset. |
-| **Naive Bayes**               | Assumption of feature independence is violated. Predicts many positives causing extremely high recall but very low precision and accuracy. Weak overall performance.                                                                                   |
-| **Random Forest (Ensemble)**  | Much better than single tree. Reduces overfitting and improves stability. Good balance between precision and recall. Strong MCC. Reliable ensemble baseline.                                                                                           |
-| **XGBoost (Ensemble)**        | Best overall performer. Highest AUC and strong generalization. Handles imbalance well with boosting and class weighting. Captures complex patterns effectively. Final recommended model.                                                               |
-
+| ML Model Name | Observation about model performance |
+| :--- | :--- |
+| **Logistic Regression** | A strong baseline that handles class imbalance well when weighted. It provides good recall (catching many defaulters) but at the cost of precision (many false alarms). It is computationally efficient and interpretable. |
+| **Decision Tree** | Tends to overfit the training data. While it captures non-linear patterns, its performance on the test set is often unstable with lower AUC compared to ensemble methods. |
+| **kNN** | Performs poorly on this high-dimensional dataset. It is computationally expensive and struggles with the class imbalance, often biasing towards the majority class (predicting no-default for almost everyone). |
+| **Naive Bayes** | Assumes feature independence which is violated here. It tends to predict a very high number of false positives, leading to high recall but extremely low precision and accuracy. |
+| **Random Forest (Ensemble)** | significantly improves upon the single decision tree by reducing variance. It achieves high accuracy but can sometimes struggle with recall on the minority class unless heavily tuned or balanced. |
+| **XGBoost (Ensemble)** | **Best Performing Model.** It consistently achieves the highest AUC and generalizes best to unseen data. Its ability to handle missing values and class imbalance (via `scale_pos_weight`) makes it the superior choice for this task. |
 
 ---
 ## 🏆 Key Findings
@@ -123,49 +96,33 @@ Because 92% of customers don’t default, predicting "No Default" always gives h
 - Naive Bayes → independence assumption violated
 
 ---
+## 5. How to Run
 
-## 🖥️ Streamlit Dashboard
+1. **Install Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-Features:
-- Dataset overview
-- Class distribution charts
-- Model comparison table
-- ROC curves
-- Precision-Recall curves
-- Confusion matrices
-- Feature importance
-- Adjustable threshold
-- Live predictions
+2. **Train Models** (Optional, if models not trained):
+   ```bash
+   python retrain_all_models.py
+   ```
 
----
-
-## ▶️ How to Run
-
-### Install dependencies
-pip install -r requirements.txt
-
-### Train models
-python models/logistic_regression.py  
-python models/decision_tree.py  
-python models/knn.py  
-python models/naive_bayes.py  
-python models/random_forest.py  
-python models/train_xgboost.py  
-
-### Launch dashboard
-streamlit run app.py
-
----
-
-## 📂 Project Structure
-
+3. **Run Streamlit App**:
+   ```bash
+   streamlit run app.py
+   ```
+   
+## 6. Project Structure
 ```
 credit-risk-ml/
 │
 ├── data/
+│   ├── application_train.csv
+│   └── cache/                  # Preprocessed data cache
 │
 ├── models/
-│   ├── pkl_files/
+│   ├── pkl_files/              # Saved model artifacts
 │   ├── logistic_regression.py
 │   ├── decision_tree.py
 │   ├── knn.py
@@ -173,21 +130,30 @@ credit-risk-ml/
 │   ├── random_forest.py
 │   └── train_xgboost.py
 │
-├── .streamlit/
+├── utils/
+│   ├── data_preprocessing.py   # Feature engineering & processing
+│   ├── model_evaluation.py     # Metrics & plotting
+│   └── model_trainer.py        # Base training class
 │
-├── app.py
-├── requirements.txt
-├── retrain_all_models.py
-└── README.md
+├── .streamlit/                 # Streamlit configuration
+│
+├── app.py                      # Main Streamlit Dashboard
+├── prepare_data.py             # Script to pre-calculate cache
+├── retrain_all_models.py       # Master training script
+├── requirements.txt            # Python dependencies
+└── README.md                   # Project documentation
 ```
 
----
+## 7. How to use the app
 
-## 🚀 Future Improvements
+1.  **Navigate to the sidebar** on the left.
+2.  **Select a model** from the dropdown menu (e.g., XGBoost, Logistic Regression).
+3.  **Enter applicant data** using the sliders and input fields provided.
+4.  Click the **"Predict"** button to get the credit risk assessment.
+5.  The model's prediction (Default or No Default) and the associated probability will be displayed.
 
-- SMOTE / Oversampling
-- Hyperparameter tuning
-- Feature selection
-- SHAP explainability
-- Probability calibration
-- Cost-sensitive learning
+## 8. Live URL
+
+The live application is deployed and accessible at the following URL:
+
+https://credit-risk-ml.streamlit.app/

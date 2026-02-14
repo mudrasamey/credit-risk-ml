@@ -1,0 +1,28 @@
+# General
+.DS_Store
+.idea/
+.vscode/
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv/
+env/
+venv/
+
+# Data Files (Too large for Git)
+data/*.csv
+data/cache/
+
+# Model Files
+models/pkl_files/
+*.pkl
+*.joblib
+
+# Logs
+logs/
+*.log
+
+# Streamlit
+.streamlit/
+! .streamlit/config.toml
